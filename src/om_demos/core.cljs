@@ -28,8 +28,11 @@
 
 (om/root
   (fn [app owner]
-    (om/build clock app {:opts {:time-key :time
-                                :formatter formatter
-                                :tick-fn tick}}))
+    (reify
+      om/IRender
+      (render [_]
+        (om/build clock app {:opts {:time-key :time
+                                    :formatter formatter
+                                    :tick-fn tick}}))))
   app-state
   {:target (. js/document (getElementById "app"))})
