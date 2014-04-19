@@ -184,7 +184,7 @@ button.del {
   #now-demo .time {
     display: inline-block;
     height: 1.5em;
-    width: 200px;  /* hack , should be 1.5em when each piece moves*/
+    width: 1.15em;
     text-align: center;
     vertical-align: top;
     overflow: hidden;

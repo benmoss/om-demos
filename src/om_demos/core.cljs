@@ -2,11 +2,18 @@
   (:require [om.core :as om :include-macros true]
             [om.dom :as dom :include-macros true]
             [goog.date :as gdate]
-            [goog.events :as gevents]))
+            [goog.events :as gevents]
+            [goog.string :as gstring]
+            [goog.string.format]))
 
 (enable-console-print!)
 
-(defn clock [data owner {:keys [formatter tick-fn interval]}]
+(defn formatter [{:keys [time]}]
+  (let [hours (.getHours time)
+        ampm-hours (if (> hours 12) (- hours 12) hours)]
+    [{:value ampm-hours} {:value (.getMinutes time)} {:value (.getSeconds time)}]))
+
+(defn subclock [data owner {:keys [tick-fn interval]}]
   (reify
     om/IInitState
     (init-state [_]
@@ -17,9 +24,6 @@
         (.listenOnce goog.events (om/get-node owner "container") "webkitAnimationEnd" #(om/set-state! owner :animating false))
         (om/set-state! owner :prior-val (om/get-props owner))
         (om/set-state! owner :animating true)))
-    om/IWillMount
-    (will-mount [_]
-      (js/setInterval (partial tick-fn data) interval))
     om/IRenderState
     (render-state [_ state]
       (let [prior (:prior-val state)
@@ -28,30 +32,35 @@
             class-names (apply str (interpose " " class-names))]
         (dom/div #js {:className class-names}
                  (dom/div #js {:ref "container"}
-                          (dom/div #js {:className "next"} (formatter data))
-                          (dom/div #js {:className "current"} (when prior (formatter prior)))))))))
-
-(defn formatter [data]
-  (.toIsoTimeString (:time data)))
+                          (dom/div #js {:className "next"} (gstring/format "%02d" (:value data)))
+                          (dom/div #js {:className "current"} (when prior (gstring/format "%02d" (:value prior))))))))))
 
 (defn tick [data]
   (om/update! data {:time (doto (goog.date.DateTime. (:time @data))
                             (.add (goog.date.Interval. 0 0 0 0 0 1)))}))
 
-(defn app-view [app owner]
+(defn clock [app owner {:keys [tick-fn interval]}]
   (reify
+    om/IWillMount
+    (will-mount [_]
+      (js/setInterval (partial tick-fn app) interval))
     om/IRender
     (render [_]
-      (dom/div #js {:id "topnav"}
-      (dom/div #js {:id "main"}
-      (dom/div #js {:id "now-demo"}
-               (om/build clock app {:opts {:interval 1000
-                                           :formatter formatter
-                                           :tick-fn tick}})))))))
+      (let [[hour minute seconds] (formatter app)]
+        (dom/div #js {:id "topnav"}
+                 (dom/div #js {:id "main"}
+                          (dom/div #js {:id "now-demo"}
+                                   (om/build subclock hour)
+                                   ": "
+                                   (om/build subclock minute)
+                                   ": "
+                                   (om/build subclock seconds))))))))
 
 (def app-state (atom {:time (goog.date.DateTime.)}))
 
 (om/root
-  app-view
+  clock
   app-state
-  {:target (. js/document (getElementById "app"))})
+  {:target (. js/document (getElementById "app"))
+   :opts {:interval 1000
+          :tick-fn tick}})
